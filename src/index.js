@@ -146,10 +146,10 @@ client.on(Events.MessageCreate, async message => {
         const enhancedSystemPrompt = `${serverConfig.systemPrompt}
 You are in a Discord channel where you can see messages from multiple users.
 Each message will be prefixed with the sender's name (e.g. "Username: message content").
-Messages marked with [Channel context] are conversations you observed but weren't directed at you.
-Messages without [Channel context] are direct interactions where someone mentioned you or replied to you.
+Messages marked with [Channel context] are conversations you observed but weren't currently directed at you.
+Messages without [Channel context] are direct interactions where someone mentioned you or replied to your message.
 The current message is from ${displayName} who has ${isReplyToBot ? "replied to your previous message" : "mentioned you"}.
-Remember to respond naturally to the current message while considering the context of who said what in previous messages.`;
+When you respond, provide ONLY your message content. DO NOT prefix your response with your name, [Channel context], or any other formatting. Just respond naturally as if in a direct conversation.`;
 
         // Get response from OpenRouter
         const { getCompletion } = require('./utils/openrouter');
@@ -161,8 +161,16 @@ Remember to respond naturally to the current message while considering the conte
             message.channelId
         );
 
+        // Clean the response by removing any potential name prefix or [Channel context]
+        let cleanedResponse = response.trim();
+        // Remove "[Channel context] " prefix if present
+        cleanedResponse = cleanedResponse.replace(/^\[Channel context\]\s*/i, '');
+        // Remove "BotName: " prefix if present
+        const botNamePattern = new RegExp(`^${process.env.BOT_NAME}:\\s*`, 'i');
+        cleanedResponse = cleanedResponse.replace(botNamePattern, '');
+
         // Simply reply to the message
-        await message.reply(response);
+        await message.reply(cleanedResponse);
 
     } catch (error) {
         console.error('Error processing message:', error);
