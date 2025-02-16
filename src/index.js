@@ -117,10 +117,17 @@ client.on(Events.MessageCreate, async message => {
                 msg.mentions.users.has(client.user.id) || // was a mention
                 (msg.reference?.messageId && messages.get(msg.reference.messageId)?.author.id === client.user.id); // was reply to bot
 
-            // Format the message to preserve sender information
-            const formattedContent = isDirectInteraction
-                ? `${displayName}: ${msg.content}`
-                : `[Channel context] ${displayName}: ${msg.content}`;
+            // Format the message based on the sender
+            let formattedContent;
+            if (msg.author.id === client.user.id) {
+                // For bot's own messages, don't include name prefix
+                formattedContent = msg.content;
+            } else {
+                // For user messages, include the name prefix
+                formattedContent = isDirectInteraction
+                    ? `${displayName}: ${msg.content}`
+                    : `[Channel context] ${displayName}: ${msg.content}`;
+            }
 
             history.push({
                 role: msg.author.id === client.user.id ? 'assistant' : 'user',
@@ -145,11 +152,23 @@ client.on(Events.MessageCreate, async message => {
         // Enhance system prompt with current user info and channel context
         const enhancedSystemPrompt = `${serverConfig.systemPrompt}
 You are in a Discord channel where you can see messages from multiple users.
-Each message will be prefixed with the sender's name (e.g. "Username: message content").
-Messages marked with [Channel context] are conversations you observed but weren't currently directed at you.
-Messages without [Channel context] are direct interactions where someone mentioned you or replied to your message.
+When you see messages in the conversation history:
+- Messages from users will be prefixed with their name (e.g. "Username: message content")
+- Messages marked with [Channel context] are conversations you observed but weren't directly involved in
+- Your own previous responses are shown without any prefix
 The current message is from ${displayName} who has ${isReplyToBot ? "replied to your previous message" : "mentioned you"}.
-When you respond, provide ONLY your message content. DO NOT prefix your response with your name, [Channel context], or any other formatting. Just respond naturally as if in a direct conversation.`;
+
+IMPORTANT RESPONSE FORMATTING:
+1. DO NOT use any name prefixes in your response (not the user's name, not your name, nothing)
+2. DO NOT include [Channel context] or any other formatting
+3. Simply provide your response as a direct message
+4. Respond naturally as if in a direct conversation
+
+Example of how to respond:
+❌ "Sparky: Hello, how are you?"
+❌ "Sen: Hello, how are you?"
+❌ "[Channel context] Hello, how are you?"
+✅ "Hello, how are you?"`;
 
         // Get response from OpenRouter
         const { getCompletion } = require('./utils/openrouter');
