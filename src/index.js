@@ -73,6 +73,56 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
+// Helper function to split long messages
+function splitMessage(content, maxLength = 2000) {
+    if (content.length <= maxLength) return [content];
+    
+    let chunks = [];
+    let currentChunk = '';
+    
+    // Split by newlines first to preserve formatting
+    const lines = content.split('\n');
+    
+    for (const line of lines) {
+        // If adding this line would exceed maxLength
+        if (currentChunk.length + line.length + 1 > maxLength) {
+            // If the current line itself is too long
+            if (line.length > maxLength) {
+                // If we have accumulated content, push it first
+                if (currentChunk) {
+                    chunks.push(currentChunk);
+                    currentChunk = '';
+                }
+                
+                // Split the long line into parts
+                for (let i = 0; i < line.length; i += maxLength) {
+                    chunks.push(line.slice(i, i + maxLength));
+                }
+            } else {
+                // Push current chunk and start new one
+                chunks.push(currentChunk);
+                currentChunk = line + '\n';
+            }
+        } else {
+            currentChunk += line + '\n';
+        }
+    }
+    
+    // Push the last chunk if it exists
+    if (currentChunk) {
+        chunks.push(currentChunk);
+    }
+    
+    // Trim chunks and add continuation markers
+    return chunks.map((chunk, index) => {
+        chunk = chunk.trim();
+        if (index < chunks.length - 1) {
+            chunk += ' (continued...)';
+        }
+        return chunk;
+    });
+}
+
 // Handle messages for LLM responses
 client.on(Events.MessageCreate, async message => {
     if (message.author.bot) return;
@@ -189,8 +239,11 @@ Example of how to respond:
         const botNamePattern = new RegExp(`^${process.env.BOT_NAME}:\\s*`, 'i');
         cleanedResponse = cleanedResponse.replace(botNamePattern, '');
 
-        // Simply reply to the message
-        await message.reply(cleanedResponse);
+        // Split long messages and send them sequentially
+        const messageParts = splitMessage(cleanedResponse);
+        for (const part of messageParts) {
+            await message.reply(part);
+        }
 
     } catch (error) {
         console.error('Error processing message:', error);
