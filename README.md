@@ -16,6 +16,7 @@ A Discord bot that uses OpenRouter to provide LLM capabilities in your server. T
 - Node.js 16.9.0 or higher
 - Discord Bot Token
 - OpenRouter API Key
+- Groq API Key (optional, for using Groq models)
 - Discord Application with proper intents enabled
 
 ## Setup
@@ -96,6 +97,24 @@ Any model available through OpenRouter can be used by providing its full identif
 - openai/gpt-4o
 
 Visit [OpenRouter's model list](https://openrouter.ai/models) for a complete list of available models and their identifiers.
+
+## AI Providers
+
+The bot supports multiple AI providers:
+
+### OpenRouter
+- Default provider
+- Provides access to multiple AI models from different companies
+- Requires an OpenRouter API key
+- Set in `OPENROUTER_API_KEY` environment variable
+
+### Groq
+- Optional alternative provider
+- Known for extremely fast inference speeds
+- Provides access to Llama models
+- Requires a Groq API key
+- Set in `GROQ_API_KEY` environment variable
+- Default model: llama-3.3-70b-versatile
 
 ## Notes
 
