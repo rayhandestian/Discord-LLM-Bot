@@ -170,14 +170,15 @@ Example of how to respond:
 ❌ "[Channel context] Hello, how are you?"
 ✅ "Hello, how are you?"`;
 
-        // Get response from OpenRouter
-        const { getCompletion } = require('./utils/openrouter');
+        // Get response from the configured provider
+        const { getCompletion } = require('./utils/ai-provider');
         const response = await getCompletion(
             history,
             enhancedSystemPrompt,
             serverConfig.model,
             serverConfig.temperature,
-            message.channelId
+            message.channelId,
+            serverConfig.provider
         );
 
         // Clean the response by removing any potential name prefix or [Channel context]

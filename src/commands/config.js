@@ -25,6 +25,19 @@ module.exports = {
                         .setRequired(true)))
         .addSubcommand(subcommand =>
             subcommand
+                .setName('provider')
+                .setDescription('Set the AI provider to use')
+                .addStringOption(option =>
+                    option
+                        .setName('provider')
+                        .setDescription('The AI provider to use (openrouter or groq)')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'OpenRouter', value: 'openrouter' },
+                            { name: 'Groq', value: 'groq' }
+                        )))
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('system_prompt')
                 .setDescription('Set the system prompt')
                 .addStringOption(option =>
@@ -69,7 +82,8 @@ module.exports = {
             model: process.env.DEFAULT_MODEL || 'mistral-7b-instruct',
             systemPrompt: process.env.DEFAULT_SYSTEM_PROMPT?.replace('${BOT_NAME}', process.env.BOT_NAME) || `You are ${process.env.BOT_NAME}, a helpful and friendly AI assistant.`,
             temperature: 0.7,
-            maxHistory: 10
+            maxHistory: 10,
+            provider: process.env.DEFAULT_PROVIDER || 'openrouter'
         };
 
         const subcommand = interaction.options.getSubcommand();
@@ -85,6 +99,12 @@ module.exports = {
                 const model = interaction.options.getString('model');
                 config.model = model;
                 await interaction.reply(`Model set to ${model}`);
+                break;
+
+            case 'provider':
+                const provider = interaction.options.getString('provider');
+                config.provider = provider;
+                await interaction.reply(`AI provider set to ${provider}`);
                 break;
 
             case 'system_prompt':
