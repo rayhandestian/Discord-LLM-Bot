@@ -35,46 +35,77 @@ function checkRateLimit(channelId) {
 }
 
 async function getCompletion(messageHistory, systemPrompt, model, temperature = 0.7, channelId) {
-    try {
-        // Check rate limit before making the request
-        checkRateLimit(channelId);
+    const maxRetries = 3;
+    const initialDelay = 10000; // 10 seconds
+    let lastError = null; // Store the last error for final throw if all retries fail
 
-        const messages = [
-            {
-                role: 'system',
-                content: systemPrompt
-            },
-            ...messageHistory // Spread the conversation history
-        ];
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            // Check rate limit before making the request (throws immediately if exceeded)
+            checkRateLimit(channelId);
 
-        const response = await openai.chat.completions.create({
-            model: model,
-            messages: messages,
-            temperature: temperature,
-            max_tokens: 1000,
-        });
+            const messages = [
+                {
+                    role: 'system',
+                    content: systemPrompt
+                },
+                ...messageHistory // Spread the conversation history
+            ];
 
-        if (!response?.choices?.[0]?.message?.content) {
-            throw new Error('Invalid response from OpenRouter');
+            const response = await openai.chat.completions.create({
+                model: model,
+                messages: messages,
+                temperature: temperature,
+                max_tokens: 1000, // Consider making this configurable later if needed
+            });
+
+            if (!response?.choices?.[0]?.message?.content) {
+                 // This specific error shouldn't be retried immediately
+                throw new Error('Invalid response from OpenRouter');
+            }
+
+            // Success
+            return response.choices[0].message.content.trim();
+
+        } catch (error) {
+            console.error(`OpenRouter API Error (Attempt ${attempt + 1}/${maxRetries + 1}):`, error);
+            lastError = error; // Store the most recent error
+
+            // Check for specific NON-RETRIABLE errors
+            const isCustomRateLimit = error.message.includes('Rate limit exceeded'); // From checkRateLimit function
+            const isApiRateLimit = error.status === 429;
+            const isAuthError = error.status === 401 || error.status === 403;
+            const isInvalidResponse = error.message.includes('Invalid response');
+
+            if (isCustomRateLimit || isApiRateLimit || isAuthError || isInvalidResponse) {
+                // These errors are not retriable, throw a specific error message immediately
+                if (isCustomRateLimit) {
+                    throw new Error(error.message); // Use the specific message from checkRateLimit
+                } else if (isApiRateLimit) {
+                    throw new Error('OpenRouter rate limit reached. Please try again later.');
+                } else if (isAuthError) {
+                    throw new Error('Authentication error with OpenRouter. Please check your API key.');
+                } else if (isInvalidResponse) {
+                    throw new Error('Received an invalid response from the AI model. Please try again.');
+                }
+            }
+
+            // If it's the last attempt, break the loop and throw the last error below
+            if (attempt === maxRetries) {
+                break;
+            }
+
+            // It's a potentially transient error, calculate delay and wait before retrying
+            const delay = initialDelay * (attempt + 1); // 10s, 20s, 30s
+            console.log(`Retrying OpenRouter API call in ${delay / 1000} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
         }
-
-        return response.choices[0].message.content.trim();
-    } catch (error) {
-        console.error('OpenRouter API Error:', error);
-        
-        // Handle specific error types
-        if (error.message.includes('Rate limit')) {
-            throw new Error(error.message);
-        } else if (error.status === 429) {
-            throw new Error('OpenRouter rate limit reached. Please try again later.');
-        } else if (error.status === 401 || error.status === 403) {
-            throw new Error('Authentication error with OpenRouter. Please check your API key.');
-        } else if (error.message.includes('Invalid response')) {
-            throw new Error('Received an invalid response from the AI model. Please try again.');
-        }
-        
-        throw new Error('Failed to get completion from OpenRouter. Please try again in a moment.');
     }
+
+    // If the loop finished without returning (i.e., all retries failed)
+    console.error('OpenRouter API failed after multiple retries.');
+    // Throw the last error encountered, or a generic one if somehow lastError is null
+    throw lastError || new Error('Failed to get completion from OpenRouter after multiple retries. Please try again later.');
 }
 
 module.exports = { getCompletion }; 
