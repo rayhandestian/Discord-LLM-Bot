@@ -179,9 +179,31 @@ client.on(Events.MessageCreate, async message => {
                     : `[Channel context] ${displayName}: ${msg.content}`;
             }
 
+            const contentArray = [];
+            if (formattedContent) {
+                contentArray.push({ type: 'text', text: formattedContent });
+            }
+
+            msg.attachments.forEach(attachment => {
+                if (attachment.contentType?.startsWith('image/')) {
+                    contentArray.push({
+                        type: 'image_url',
+                        image_url: { url: attachment.url }
+                    });
+                } else if (attachment.contentType === 'application/pdf') {
+                    contentArray.push({
+                        type: 'file',
+                        file: {
+                            filename: attachment.name,
+                            file_data: attachment.url
+                        }
+                    });
+                }
+            });
+
             history.push({
                 role: msg.author.id === client.user.id ? 'assistant' : 'user',
-                content: formattedContent
+                content: (contentArray.length === 1 && contentArray[0].type === 'text') ? formattedContent : contentArray
             });
         });
 
@@ -194,9 +216,32 @@ client.on(Events.MessageCreate, async message => {
             cleanContent = cleanContent.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim();
         }
 
+        const formattedCurrentContent = `${displayName}: ${cleanContent}`;
+        const currentContentArray = [];
+        if (formattedCurrentContent) {
+            currentContentArray.push({ type: 'text', text: formattedCurrentContent });
+        }
+
+        message.attachments.forEach(attachment => {
+            if (attachment.contentType?.startsWith('image/')) {
+                currentContentArray.push({
+                    type: 'image_url',
+                    image_url: { url: attachment.url }
+                });
+            } else if (attachment.contentType === 'application/pdf') {
+                currentContentArray.push({
+                    type: 'file',
+                    file: {
+                        filename: attachment.name,
+                        file_data: attachment.url
+                    }
+                });
+            }
+        });
+
         history.push({
             role: 'user',
-            content: `${displayName}: ${cleanContent}`
+            content: (currentContentArray.length === 1 && currentContentArray[0].type === 'text') ? formattedCurrentContent : currentContentArray
         });
 
         // Enhance system prompt with current user info and channel context
