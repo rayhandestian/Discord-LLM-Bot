@@ -156,7 +156,7 @@ client.on(Events.MessageCreate, async message => {
         const history = [];
         
         // Add previous messages to history
-        messages.reverse().forEach(msg => {
+        for (const msg of messages.reverse().values()) {
             if (msg.author.bot && msg.author.id !== client.user.id) return; // Skip other bots' messages
             
             const member = msg.member;
@@ -184,7 +184,7 @@ client.on(Events.MessageCreate, async message => {
                 contentArray.push({ type: 'text', text: formattedContent });
             }
 
-            msg.attachments.forEach(attachment => {
+            for (const attachment of msg.attachments.values()) {
                 if (attachment.contentType?.startsWith('image/')) {
                     contentArray.push({
                         type: 'image_url',
@@ -198,14 +198,42 @@ client.on(Events.MessageCreate, async message => {
                             file_data: attachment.url
                         }
                     });
+                } else if (attachment.contentType?.startsWith('video/')) {
+                    contentArray.push({
+                        type: 'video_url',
+                        video_url: { url: attachment.url }
+                    });
+                } else if (attachment.contentType?.startsWith('audio/')) {
+                    try {
+                        const response = await fetch(attachment.url);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const buffer = Buffer.from(arrayBuffer);
+                        const base64Audio = buffer.toString('base64');
+                        // Extract format from contentType (e.g., 'audio/mpeg' -> 'mp3', 'audio/wav' -> 'wav', etc)
+                        // Fallback to getting it from the file extension
+                        let format = attachment.contentType.split('/')[1] || attachment.name.split('.').pop();
+                        // OpenRouter supports mp3, wav, etc. map mpeg to mp3.
+                        if (format === 'mpeg') format = 'mp3';
+                        if (format === 'ogg; codecs=opus') format = 'ogg';
+
+                        contentArray.push({
+                            type: 'input_audio',
+                            input_audio: {
+                                data: base64Audio,
+                                format: format
+                            }
+                        });
+                    } catch (err) {
+                        console.error('Failed to fetch/encode audio attachment:', err);
+                    }
                 }
-            });
+            }
 
             history.push({
                 role: msg.author.id === client.user.id ? 'assistant' : 'user',
                 content: (contentArray.length === 1 && contentArray[0].type === 'text') ? formattedContent : contentArray
             });
-        });
+        }
 
         // Add the current message
         const member = message.member;
@@ -222,7 +250,7 @@ client.on(Events.MessageCreate, async message => {
             currentContentArray.push({ type: 'text', text: formattedCurrentContent });
         }
 
-        message.attachments.forEach(attachment => {
+        for (const attachment of message.attachments.values()) {
             if (attachment.contentType?.startsWith('image/')) {
                 currentContentArray.push({
                     type: 'image_url',
@@ -236,8 +264,34 @@ client.on(Events.MessageCreate, async message => {
                         file_data: attachment.url
                     }
                 });
+            } else if (attachment.contentType?.startsWith('video/')) {
+                currentContentArray.push({
+                    type: 'video_url',
+                    video_url: { url: attachment.url }
+                });
+            } else if (attachment.contentType?.startsWith('audio/')) {
+                try {
+                    const response = await fetch(attachment.url);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const buffer = Buffer.from(arrayBuffer);
+                    const base64Audio = buffer.toString('base64');
+                    // Extract format from contentType
+                    let format = attachment.contentType.split('/')[1] || attachment.name.split('.').pop();
+                    if (format === 'mpeg') format = 'mp3';
+                    if (format === 'ogg; codecs=opus') format = 'ogg';
+
+                    currentContentArray.push({
+                        type: 'input_audio',
+                        input_audio: {
+                            data: base64Audio,
+                            format: format
+                        }
+                    });
+                } catch (err) {
+                    console.error('Failed to fetch/encode audio attachment:', err);
+                }
             }
-        });
+        }
 
         history.push({
             role: 'user',
