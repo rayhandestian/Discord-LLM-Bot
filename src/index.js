@@ -319,8 +319,55 @@ Example of how to respond:
 ❌ "[Channel context] Hello, how are you?"
 ✅ "Hello, how are you?"`;
 
+        const { getCompletion, getModelCapabilities } = require('./utils/ai-provider');
+        
+        // Fetch model capabilities and optionally strip unsupported attachments
+        let capabilities = ['text'];
+        if (typeof getModelCapabilities === 'function') {
+            capabilities = await getModelCapabilities(serverConfig.model, serverConfig.provider);
+        }
+        
+        const supportsImage = capabilities.includes('image');
+        const supportsAudio = capabilities.includes('audio');
+        const supportsVideo = capabilities.includes('video');
+        const supportsFile = capabilities.includes('file');
+        
+        for (const msg of history) {
+            if (Array.isArray(msg.content)) {
+                let stripped = false;
+                const originalLength = msg.content.length;
+                
+                msg.content = msg.content.filter(block => {
+                    if (block.type === 'text') return true;
+                    if (block.type === 'image_url' && supportsImage) return true;
+                    if (block.type === 'input_audio' && supportsAudio) return true;
+                    if (block.type === 'video_url' && supportsVideo) return true;
+                    if (block.type === 'file' && supportsFile) return true;
+                    return false;
+                });
+                
+                if (msg.content.length < originalLength) {
+                    stripped = true;
+                }
+                
+                // If we stripped an attachment for this message, append a warning exactly once.
+                if (stripped) {
+                    let textBlock = msg.content.find(b => b.type === 'text');
+                    if (textBlock) {
+                        textBlock.text += '\n\n[System Note: Attached media was ignored because the selected model does not support it.]';
+                    } else {
+                        msg.content.push({ type: 'text', text: '[System Note: Attached media was ignored because the selected model does not support it.]' });
+                    }
+                }
+                
+                // If a message was left with no content after filtering, just fall back to empty text
+                if (msg.content.length === 0) {
+                     msg.content = [{ type: 'text', text: '[Ignored Attachment]' }];
+                }
+            }
+        }
+
         // Get response from the configured provider
-        const { getCompletion } = require('./utils/ai-provider');
         const response = await getCompletion(
             history,
             enhancedSystemPrompt,

@@ -108,4 +108,30 @@ async function getCompletion(messageHistory, systemPrompt, model, temperature = 
     throw lastError || new Error('Failed to get completion from OpenRouter after multiple retries. Please try again later.');
 }
 
-module.exports = { getCompletion }; 
+let modelsCache = null;
+let lastCacheTime = 0;
+
+async function getModelCapabilities(modelId) {
+    try {
+        if (!modelsCache || Date.now() - lastCacheTime > 3600000) { // 1 hour cache
+            const response = await fetch('https://openrouter.ai/api/v1/models');
+            if (response.ok) {
+                const data = await response.json();
+                modelsCache = data.data;
+                lastCacheTime = Date.now();
+            } else {
+                console.error('Failed to fetch OpenRouter models:', response.statusText);
+            }
+        }
+        
+        if (modelsCache) {
+            const model = modelsCache.find(m => m.id === modelId);
+            return model?.architecture?.input_modalities || ['text'];
+        }
+    } catch (error) {
+        console.error('Error fetching OpenRouter models:', error);
+    }
+    return ['text']; // Default to text-only if we can't fetch capabilities
+}
+
+module.exports = { getCompletion, getModelCapabilities }; 
